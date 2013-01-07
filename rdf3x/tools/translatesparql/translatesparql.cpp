@@ -42,22 +42,15 @@ static string buildFactsAttribute(unsigned id,const char* attribute)
   snprintf(buffer,sizeof(buffer),"f%u.%s",id,attribute);
   return string(buffer);
 }
-//---------------------------------------------------------------------------
-static void dumpMonetDB(const QueryGraph& query)
-// Dump the query
-{
-  cout << "select ";
-  {
-    unsigned id=0;
-    for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
-      if (id) cout << ",";
-      cout << "s" << id << ".value";
-      id++;
-    }
-  }
-  cout << endl;
-  cout << "from (" << endl;
-  map<unsigned,string> representative;
+
+static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subquery, map<unsigned,unsigned>& projection, set<unsigned> unionvars, map<unsigned,unsigned>& null) {
+
+  // dictionary with the nodes elements
+  map <unsigned, string> representative;
+
+
+
+  // esto creo que va en el translateMonet
   {
     unsigned id=0;
     for (vector<QueryGraph::Node>::const_iterator iter=query.getQuery().nodes.begin(),limit=query.getQuery().nodes.end();iter!=limit;++iter) {
@@ -120,6 +113,114 @@ static void dumpMonetDB(const QueryGraph& query)
       ++id;
     }
   }
+
+
+} 
+
+
+static void translateMonet(QueryGraph& query, QueryGraph::SubQuery subquery){
+
+  map <unsigned, unsigned> projection, null;
+  
+  // No optional, No Union
+  if(!subquery.optional.size() && !subquery.unions.size()) {
+    translateSubQueryMonet(query, subquery, projection, set<unsigned>(), null);
+  }
+    
+}
+
+
+
+//---------------------------------------------------------------------------
+static void dumpMonetDB(QueryGraph& query)
+// Dump a monet query
+{
+  cout << "select ";
+  {
+    unsigned id=0;
+    for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
+      if (id) cout << ",";
+      cout << "s" << id << ".value";
+      id++;
+    }
+  }
+  cout << endl;
+  cout << "from (" << endl;
+ 
+  // Este map no aparece en el dumpPostgres 
+  // map<unsigned,string> representative;
+
+  QueryGraph::SubQuery subquery = query.getQuery();
+  
+  translateMonet(query,subquery);
+
+  
+  // // esto creo que va en el translateMonet
+  // {
+  //   unsigned id=0;
+  //   for (vector<QueryGraph::Node>::const_iterator iter=query.getQuery().nodes.begin(),limit=query.getQuery().nodes.end();iter!=limit;++iter) {
+  //     if ((!(*iter).constSubject)&&(!representative.count((*iter).subject)))
+  // 	representative[(*iter).subject]=buildFactsAttribute(id,"subject");
+  //     if ((!(*iter).constPredicate)&&(!representative.count((*iter).predicate)))
+  // 	representative[(*iter).predicate]=buildFactsAttribute(id,"predicate");
+  //     if ((!(*iter).constObject)&&(!representative.count((*iter).object)))
+  // 	representative[(*iter).object]=buildFactsAttribute(id,"object");
+  //     ++id;
+  //   }
+  // }
+  // cout << "   select ";
+  // {
+  //   unsigned id=0;
+  //   for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
+  //     if (id) cout << ",";
+  //     cout << representative[*iter] << " as r" << id;
+  //     id++;
+  //   }
+  // }
+  // cout << endl;
+  // cout << "   from ";
+  // {
+  //   unsigned id=0;
+  //   for (vector<QueryGraph::Node>::const_iterator iter=query.getQuery().nodes.begin(),limit=query.getQuery().nodes.end();iter!=limit;++iter) {
+  //     if (id) cout << ",";
+  //     if ((*iter).constPredicate)
+  // 	cout << "p" << (*iter).predicate << " f" << id; else
+  // 	cout << "allproperties f" << id;
+  //     ++id;
+  //   }
+
+  // }
+  // cout << endl;
+  // cout << "   where ";
+  // {
+  //   unsigned id=0; bool first=true;
+  //   for (vector<QueryGraph::Node>::const_iterator iter=query.getQuery().nodes.begin(),limit=query.getQuery().nodes.end();iter!=limit;++iter) {
+  //     string s=buildFactsAttribute(id,"subject"),p=buildFactsAttribute(id,"predicate"),o=buildFactsAttribute(id,"object");
+  //     if ((*iter).constSubject) {
+  // 	if (first) first=false; else cout << " and ";
+  // 	cout << s << "=" << (*iter).subject;
+  //     } else if (representative[(*iter).subject]!=s) {
+  // 	if (first) first=false; else cout << " and ";
+  // 	cout << s << "=" << representative[(*iter).subject];
+  //     }
+  //     if ((*iter).constPredicate) {
+  //     } else if (representative[(*iter).predicate]!=p) {
+  // 	if (first) first=false; else cout << " and ";
+  // 	cout << p << "=" << representative[(*iter).predicate];
+  //     }
+  //     if ((*iter).constObject) {
+  // 	if (first) first=false; else cout << " and ";
+  // 	cout << o << "=" << (*iter).object;
+  //     } else if (representative[(*iter).object]!=o) {
+  // 	if (first) first=false; else cout << " and ";
+  // 	cout << o << "=" << representative[(*iter).object];
+  //     }
+  //     ++id;
+  //   }
+  // }
+
+
+  // desde aquí llega el dumpPotgres 
   cout << endl << ") facts";
   {
     unsigned id=0;
@@ -656,10 +757,8 @@ static void translatePostgres(QueryGraph& query, QueryGraph::SubQuery subquery, 
 static void dumpPostgres(QueryGraph& query,const string& schema)
 // Dump a postgres query
 {
-  //cout << "\\timing" << endl;
+  cout << "\\timing" << endl;
   cout << "select ";
-  if (query.getDuplicateHandling() == 3)
-    cout << "distinct ";
   {
     unsigned id=0;
     for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
@@ -759,7 +858,7 @@ int main(int argc,char* argv[])
       return 1;
     }
 }
-
+  
   // And dump it
   if (monetDB)
     dumpMonetDB(queryGraph); 
