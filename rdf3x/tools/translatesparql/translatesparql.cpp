@@ -65,13 +65,37 @@ static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subqu
   }
   cout << "   select ";
   {
-    unsigned id=0;
+    unsigned id=0, i=0;
     for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
-      if (id) cout << ",";
-      cout << representative[*iter] << " as r" << id;
+     
+      // este if deberia tener los if que se encarguen de los nulls para el caso del union
+      if (i) cout << ",";
+      // si no esta 
+      if(!projection.count(*iter)) {
+	if(representative.count(*iter)) {
+	  cout << representative[*iter];
+	  projection[*iter]=1;
+	  null[*iter] = 1;
+	}
+	else if (!representative.count(*iter) && null.count(*iter))
+	  cout << " NULL";
+	cout << " as r" << id;
+	i=1;
+      
+      } else {
+	if (representative.count(*iter)) {
+	  cout << representative[*iter] << " as r" << id;
+	  i=1;
+	} else if (null.count(*iter)) {
+	  cout << " NULL as r " << id;
+	  i = 1;
+	}
+      }
+	    
       id++;
     }
   }
+
   cout << endl;
   cout << "   from ";
   {
