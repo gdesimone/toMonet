@@ -48,8 +48,6 @@ static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subqu
   // dictionary with the nodes elements
   map <unsigned, string> representative;
 
-
-
   // esto creo que va en el translateMonet
   {
     unsigned id=0;
@@ -141,6 +139,17 @@ static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subqu
 
 } 
 
+static void translateUnionMonet(QueryGraph& query, vector<QueryGraph::SubQuery>  unions, map<unsigned,unsigned>& projection, set<unsigned> unionvars) {
+
+  unsigned i = 0;
+  map<unsigned,unsigned> null;
+  for (vector<QueryGraph::SubQuery>::const_iterator iter=unions.begin(), limit=unions.end() ; iter != limit ; ++iter) {
+   if (i) 
+     cout << "\n   UNION" << endl;
+   translateSubQueryMonet(query,*iter,projection,unionvars,null);
+   i++;
+  }
+}
 
 static void translateMonet(QueryGraph& query, QueryGraph::SubQuery subquery){
 
@@ -150,7 +159,11 @@ static void translateMonet(QueryGraph& query, QueryGraph::SubQuery subquery){
   if(!subquery.optional.size() && !subquery.unions.size()) {
     translateSubQueryMonet(query, subquery, projection, set<unsigned>(), null);
   }
-    
+
+  // Union 
+  else if(!subquery.optional.size() && subquery.unions.size() == 1) {
+    translateUnionMonet(query, subquery.unions[0],projection, set<unsigned>());
+  }
 }
 
 
