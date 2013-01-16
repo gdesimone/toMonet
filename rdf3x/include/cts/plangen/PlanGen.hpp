@@ -55,13 +55,16 @@ class PlanGen
    /// Build the informaion about a join
    JoinDescription buildJoinInfo(const QueryGraph::SubQuery& query,const QueryGraph::Edge& edge);
    /// Generate an optional part
-   Problem* buildOptional(const QueryGraph::SubQuery& query,unsigned id);
+   Problem* buildOptional(const QueryGraph::SubQuery& query,const QueryGraph::SubQuery& subquery,unsigned id);
    /// Generate a union part
    Problem* buildUnion(const std::vector<QueryGraph::SubQuery>& query,unsigned id);
    /// Generate a gjoin part - Hancel y Giuseppe
    Problem*buildGJoin(const std::vector<QueryGraph::SubQuery>& query,unsigned id);
    /// Generate a table function access
    Problem* buildTableFunction(const QueryGraph::TableFunction& function,unsigned id);
+
+   /// Translate a query into an operator tree only used in OPTIONAL clause
+   Plan* translateForOptional(const QueryGraph::SubQuery& query);
 
    /// Translate a query into an operator tree
    Plan* translate(const QueryGraph::SubQuery& query);

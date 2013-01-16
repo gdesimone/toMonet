@@ -25,6 +25,8 @@
 #include <map>
 #include <set>
 #include <cassert>
+#include <iostream>
+using namespace std;
 //---------------------------------------------------------------------------
 // RDF-3X
 // (c) 2008 Thomas Neumann. Web site: http://www.mpi-inf.mpg.de/~neumann/rdf3x
@@ -312,7 +314,7 @@ static Operator* translateHashJoin(Runtime& runtime,const map<unsigned,Register*
    for (map<unsigned,Register*>::const_iterator iter=rightBindings.begin(),limit=rightBindings.end();iter!=limit;++iter)
       if ((*iter).first!=joinOn)
          rightTail.push_back((*iter).second);
-
+   
    // Build the operator
    Operator* result=new HashJoin(leftTree,leftBindings[joinOn],leftTail,rightTree,rightBindings[joinOn],rightTail,-plan->left->costs,plan->right->costs,plan->cardinality);
 
@@ -346,7 +348,7 @@ static Operator* translateHashOptional(Runtime& runtime,const map<unsigned,Regis
    for (map<unsigned,Register*>::const_iterator iter=rightBindings.begin(),limit=rightBindings.end();iter!=limit;++iter)
       if ((*iter).first!=joinOn)
          rightTail.push_back((*iter).second);
-
+  
    // Build the operator
    Operator* result=new HashOptional(leftTree,leftBindings[joinOn],leftTail,rightTree,rightBindings[joinOn],rightTail,-plan->left->costs,plan->right->costs,plan->cardinality);
 

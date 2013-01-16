@@ -185,8 +185,8 @@ static void translateMonet(QueryGraph& query, QueryGraph::SubQuery subquery){
   }
 
   // Optional clause
-  else if(subquery.optional.size() == 1 && !subquery.unions.size()) {
-    cout << " hola ";
+  else if(subquery.optional.size()  && !subquery.unions.size()) {
+    cout << " hola hancel es gay";
     unsigned  f = 0, r = 0, fact = 0;
     translateOptionalMonet(query,subquery, projection, f,r,fact,1);
   }

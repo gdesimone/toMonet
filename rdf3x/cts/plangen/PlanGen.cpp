@@ -8,6 +8,7 @@
 #include <map>
 #include <set>
 #include <algorithm>
+#include <iostream>
 //---------------------------------------------------------------------------
 // RDF-3X
 // (c) 2008 Thomas Neumann. Web site: http://www.mpi-inf.mpg.de/~neumann/rdf3x
@@ -425,8 +426,8 @@ PlanGen::Problem* PlanGen::buildOptional(const QueryGraph::SubQuery& query, cons
    Plan* last=plans.alloc();
    last->op=Plan::HashOptional;   // Hancel y Giuseppe
    last->opArg=0;
-   last->left=q;//0
-   last->right=p;//1
+   last->left=q;
+   last->right=p;
    last->cardinality=card;
    last->costs=costs;
    last->ordering=~0u;
@@ -1025,8 +1026,8 @@ Plan* PlanGen::translateForOptional(const QueryGraph::SubQuery& query)
          last->next=p; else
          dpTable[0]=p;
       last=p;
-   }*/
-   unsigned singletonId=id;
+   }
+   unsigned singletonId=id;*/
    if (singletonNeeded) {
       Plan* plan=plans.alloc();
       plan->op=Plan::Singleton;
@@ -1051,9 +1052,9 @@ Plan* PlanGen::translateForOptional(const QueryGraph::SubQuery& query)
 
    // Construct the join info
    vector<JoinDescription> joins;
-   for (vector<QueryGraph::Edge>::const_iterator iter=query.edges.begin(),limit=query.edges.end();iter!=limit;++iter)
+/*   for (vector<QueryGraph::Edge>::const_iterator iter=query.edges.begin(),limit=query.edges.end();iter!=limit;++iter)
       joins.push_back(buildJoinInfo(query,*iter));
-/*   id=functionIds;
+   id=functionIds;
    for (vector<QueryGraph::TableFunction>::const_iterator iter=query.tableFunctions.begin(),limit=query.tableFunctions.end();iter!=limit;++iter,++id) {
       JoinDescription join;
       set<unsigned> input;
@@ -1167,7 +1168,7 @@ Plan* PlanGen::translateForOptional(const QueryGraph::SubQuery& query)
                            }
                         }
                      }
-                     if (!query.gjoins.size()) {
+/*                     if (!query.gjoins.size()) {
                        // Try a hash join
                        if (selectivity>=0) {
                           Plan* p=plans.alloc();
@@ -1225,7 +1226,7 @@ Plan* PlanGen::translateForOptional(const QueryGraph::SubQuery& query)
                         p->costs=leftPlan->costs+rightPlan->costs+Costs::hashJoin(rightPlan->cardinality,leftPlan->cardinality);
                         p->ordering=~0u;
                         addPlan(problem,p);
-                     }
+                     }*/
                  }
                }
             }
@@ -1239,7 +1240,7 @@ Plan* PlanGen::translateForOptional(const QueryGraph::SubQuery& query)
    if (!plan)
       return 0;
 
-   // Add all remaining filters
+/*   // Add all remaining filters
    set<const QueryGraph::Filter*> appliedFilters;
    findFilters(plan,appliedFilters);
    for (vector<QueryGraph::Filter>::const_iterator iter=query.filters.begin(),limit=query.filters.end();iter!=limit;++iter)
@@ -1255,7 +1256,7 @@ Plan* PlanGen::translateForOptional(const QueryGraph::SubQuery& query)
          p->ordering=plan->ordering;
          plan=p;
       }
-
+*/
    // Return the complete plan
    return plan;
 }
