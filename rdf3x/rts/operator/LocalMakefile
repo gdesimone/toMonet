@@ -6,6 +6,7 @@ src_rts_operator:=					\
 	rts/operator/FullyAggregatedIndexScan.cpp	\
 	rts/operator/HashGroupify.cpp			\
 	rts/operator/HashJoin.cpp			\
+        rts/operator/HashOptional.cpp                       \
 	rts/operator/IndexScan.cpp			\
 	rts/operator/MergeJoin.cpp			\
 	rts/operator/MergeUnion.cpp			\

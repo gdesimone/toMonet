@@ -12,6 +12,7 @@
 #include "rts/operator/MergeUnion.hpp"
 #include "rts/operator/NestedLoopFilter.hpp"
 #include "rts/operator/NestedLoopJoin.hpp"
+#include "rts/operator/HashOptional.hpp"
 #include "rts/operator/ResultsPrinter.hpp"
 #include "rts/operator/Selection.hpp"
 #include "rts/operator/SingletonScan.hpp"
@@ -146,6 +147,7 @@ static void collectVariables(const map<unsigned,Register*>& context,set<unsigned
             variables.insert(node.object);
          break;
       }
+      case Plan::HashOptional:
       case Plan::NestedLoopJoin:
       case Plan::MergeJoin:
       case Plan::HashJoin:
@@ -313,6 +315,41 @@ static Operator* translateHashJoin(Runtime& runtime,const map<unsigned,Register*
 
    // Build the operator
    Operator* result=new HashJoin(leftTree,leftBindings[joinOn],leftTail,rightTree,rightBindings[joinOn],rightTail,-plan->left->costs,plan->right->costs,plan->cardinality);
+
+   // And apply additional selections if necessary
+   result=addAdditionalSelections(runtime,result,joinVariables,leftBindings,rightBindings,joinOn);
+
+   return result;
+}
+//---------------------------------------------------------------------------
+static Operator* translateHashOptional(Runtime& runtime,const map<unsigned,Register*>& context,const set<unsigned>& projection,map<unsigned,Register*>& bindings,const map<const QueryGraph::Node*,unsigned>& registers,Plan* plan)
+   // Translate a optional into an operator tree
+{
+   // Get the join variables (if any)
+   set<unsigned> joinVariables,newProjection=projection;
+   getJoinVariables(context,joinVariables,plan->left,plan->right);
+   newProjection.insert(joinVariables.begin(),joinVariables.end());
+   assert(!joinVariables.empty());
+   unsigned joinOn=*(joinVariables.begin());
+
+   // Build the input trees
+   map<unsigned,Register*> leftBindings,rightBindings;
+   Operator* leftTree=translatePlan(runtime,context,newProjection,leftBindings,registers,plan->left);
+   Operator* rightTree=translatePlan(runtime,context,newProjection,rightBindings,registers,plan->right);
+   mergeBindings(projection,bindings,leftBindings,rightBindings);
+
+   // Prepare the tails
+   vector<Register*> leftTail,rightTail;
+   for (map<unsigned,Register*>::const_iterator iter=leftBindings.begin(),limit=leftBindings.end();iter!=limit;++iter)
+      if ((*iter).first!=joinOn)
+         leftTail.push_back((*iter).second);
+   for (map<unsigned,Register*>::const_iterator iter=rightBindings.begin(),limit=rightBindings.end();iter!=limit;++iter)
+      if ((*iter).first!=joinOn)
+         rightTail.push_back((*iter).second);
+
+   // Build the operator
+   Operator* result=new HashOptional(leftTree,leftBindings[joinOn],leftTail,rightTree,rightBindings[joinOn],rightTail,-plan->left->costs,plan->right->costs,plan->cardinality);
+
 
    // And apply additional selections if necessary
    result=addAdditionalSelections(runtime,result,joinVariables,leftBindings,rightBindings,joinOn);
@@ -609,6 +646,7 @@ static Operator* translatePlan(Runtime& runtime,const map<unsigned,Register*>& c
       case Plan::MergeUnion: result=translateMergeUnion(runtime,context,projection,bindings,registers,plan); break;
       case Plan::TableFunction: result=translateTableFunction(runtime,context,projection,bindings,registers,plan); break;
       case Plan::Singleton: result=new SingletonScan(); break;
+      case Plan::HashOptional: result=translateHashOptional(runtime,context,projection,bindings,registers,plan); break;
    }
    return result;
 }

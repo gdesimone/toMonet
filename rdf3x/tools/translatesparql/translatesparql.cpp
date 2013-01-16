@@ -7,6 +7,7 @@
 #include <fstream>
 #include <cstdlib>
 #include <map>
+
 //---------------------------------------------------------------------------
 // RDF-3X
 // (c) 2008 Thomas Neumann. Web site: http://www.mpi-inf.mpg.de/~neumann/rdf3x
@@ -51,7 +52,7 @@ static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subqu
   // esto creo que va en el translateMonet
   {
     unsigned id=0;
-    for (vector<QueryGraph::Node>::const_iterator iter=query.getQuery().nodes.begin(),limit=query.getQuery().nodes.end();iter!=limit;++iter) {
+    for (vector<QueryGraph::Node>::const_iterator iter=subquery.nodes.begin(),limit=subquery.nodes.end();iter!=limit;++iter) {
       if ((!(*iter).constSubject)&&(!representative.count((*iter).subject)))
 	representative[(*iter).subject]=buildFactsAttribute(id,"subject");
       if ((!(*iter).constPredicate)&&(!representative.count((*iter).predicate)))
@@ -65,12 +66,13 @@ static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subqu
   {
     unsigned id=0, i=0;
     for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
-     
+      
       // este if deberia tener los if que se encarguen de los nulls para el caso del union
       if (i) cout << ",";
       // si no esta 
       if(!projection.count(*iter)) {
 	if(representative.count(*iter)) {
+          //cout << " aca " << endl;
 	  cout << representative[*iter];
 	  projection[*iter]=1;
 	  null[*iter] = 1;
@@ -98,7 +100,7 @@ static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subqu
   cout << "   from ";
   {
     unsigned id=0;
-    for (vector<QueryGraph::Node>::const_iterator iter=query.getQuery().nodes.begin(),limit=query.getQuery().nodes.end();iter!=limit;++iter) {
+    for (vector<QueryGraph::Node>::const_iterator iter=subquery.nodes.begin(),limit=subquery.nodes.end();iter!=limit;++iter) {
       if (id) cout << ",";
       if ((*iter).constPredicate)
 	cout << "p" << (*iter).predicate << " f" << id; else
@@ -111,7 +113,7 @@ static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subqu
   cout << "   where ";
   {
     unsigned id=0; bool first=true;
-    for (vector<QueryGraph::Node>::const_iterator iter=query.getQuery().nodes.begin(),limit=query.getQuery().nodes.end();iter!=limit;++iter) {
+    for (vector<QueryGraph::Node>::const_iterator iter=subquery.nodes.begin(),limit=subquery.nodes.end();iter!=limit;++iter) {
       string s=buildFactsAttribute(id,"subject"),p=buildFactsAttribute(id,"predicate"),o=buildFactsAttribute(id,"object");
       if ((*iter).constSubject) {
 	if (first) first=false; else cout << " and ";
@@ -135,8 +137,6 @@ static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subqu
       ++id;
     }
   }
-
-
 } 
 
 static void translateUnionMonet(QueryGraph& query, vector<QueryGraph::SubQuery>  unions, map<unsigned,unsigned>& projection, set<unsigned> unionvars) {
@@ -151,6 +151,25 @@ static void translateUnionMonet(QueryGraph& query, vector<QueryGraph::SubQuery> 
   }
 }
 
+static void translateOptionalMonet(QueryGraph& query, QueryGraph::SubQuery subquery,map<unsigned,unsigned>& projection, unsigned& f, unsigned& r, unsigned& fact, unsigned factbool) {
+
+  unsigned fact_ini= fact;
+  if (factbool && subquery.nodes.size()) {
+    //    translateSubQueryOptional(query, subquery, f,r, projection, set<unsigned>());
+    cout << "facts" << fact_ini;
+  }
+  
+  cout << " Fin Translate Optional Monet ";
+  // deberia revisar si es la primera vez y si nodes tiene algo
+  // luego ir al translateSubQuery del Optional
+  
+  // 
+  
+
+
+}  
+
+
 static void translateMonet(QueryGraph& query, QueryGraph::SubQuery subquery){
 
   map <unsigned, unsigned> projection, null;
@@ -163,6 +182,13 @@ static void translateMonet(QueryGraph& query, QueryGraph::SubQuery subquery){
   // Union 
   else if(!subquery.optional.size() && subquery.unions.size() == 1) {
     translateUnionMonet(query, subquery.unions[0],projection, set<unsigned>());
+  }
+
+  // Optional clause
+  else if(subquery.optional.size() == 1 && !subquery.unions.size()) {
+    cout << " hola ";
+    unsigned  f = 0, r = 0, fact = 0;
+    translateOptionalMonet(query,subquery, projection, f,r,fact,1);
   }
 }
 
@@ -895,7 +921,7 @@ int main(int argc,char* argv[])
       return 1;
     }
 }
-  
+    
   // And dump it
   if (monetDB)
     dumpMonetDB(queryGraph); 

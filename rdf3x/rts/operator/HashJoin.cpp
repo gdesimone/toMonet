@@ -1,6 +1,7 @@
 #include "rts/operator/HashJoin.hpp"
 #include "rts/operator/PlanPrinter.hpp"
 #include "rts/runtime/Runtime.hpp"
+#include <iostream>
 //---------------------------------------------------------------------------
 // RDF-3X
 // (c) 2008 Thomas Neumann. Web site: http://www.mpi-inf.mpg.de/~neumann/rdf3x
@@ -38,6 +39,7 @@ void HashJoin::BuildHashTable::run()
    join.hashTable.clear();
    join.hashTable.resize(2*hashTableSize);
    for (unsigned leftCount=join.left->first();leftCount;leftCount=join.left->next()) {
+      //cout << leftValue->value << endl;
       // Check the domain first
       bool joinCandidate=true;
       for (unsigned index=0,limit=domainRegs.size();index<limit;++index) {
@@ -88,7 +90,7 @@ void HashJoin::BuildHashTable::run()
             e->values[index2]=join.leftTail[index2]->value;
          continue;
       }
-
+      
       // Create a new tuple
       e=join.entryPool.alloc();
       e->next=0;
@@ -105,7 +107,7 @@ void HashJoin::BuildHashTable::run()
    // Update the domains
    for (unsigned index=0,limit=domainRegs.size();index<limit;++index)
       domainRegs[index]->domain->restrictTo(observedDomains[index]);
-
+   
    done=true;
 }
 //---------------------------------------------------------------------------
@@ -135,7 +137,7 @@ HashJoin::~HashJoin()
 //---------------------------------------------------------------------------
 void HashJoin::insert(Entry* e)
    // Insert into the hash table
-{
+{  
    unsigned hashTableSize=hashTable.size()/2;
    // Try to insert
    bool firstTable=true;
@@ -159,14 +161,15 @@ void HashJoin::insert(Entry* e)
 //---------------------------------------------------------------------------
 HashJoin::Entry* HashJoin::lookup(unsigned key)
    // Search an entry in the hash table
-{
+{  
    unsigned hashTableSize=hashTable.size()/2;
    Entry* e=hashTable[hash1(key,hashTableSize)];
    if (e&&(e->key==key))
       return e;
    e=hashTable[hash2(key,hashTableSize)];
    if (e&&(e->key==key))
-      return e;
+      return e; 
+    
    return 0;
 }
 //---------------------------------------------------------------------------
@@ -184,31 +187,34 @@ unsigned HashJoin::first()
 
    // Setup the lookup
    hashTableIter=lookup(rightValue->value);
-
+      
    return next();
 }
 //---------------------------------------------------------------------------
 unsigned HashJoin::next()
    // Produce the next tuple
-{
+{  
    // Repeat until a match is found
    while (true) {
       // Still scanning the hash table?
       for (;hashTableIter;hashTableIter=hashTableIter->next) {
          unsigned leftCount=hashTableIter->count;
          leftValue->value=hashTableIter->key;
+         
          for (unsigned index=0,limit=leftTail.size();index<limit;++index)
             leftTail[index]->value=hashTableIter->values[index];
+         
          hashTableIter=hashTableIter->next;
 
          unsigned count=leftCount*rightCount;
          observedOutputCardinality+=count;
          return count;
       }
-
+      
       // Read the next tuple from the right
       if ((rightCount=right->next())==0)
          return false;
+      
       hashTableIter=lookup(rightValue->value);
    }
 }
