@@ -44,6 +44,32 @@ static string buildFactsAttribute(unsigned id,const char* attribute)
   return string(buffer);
 }
 
+static void getVariables(QueryGraph::SubQuery subquery, set<unsigned>& vars) {
+   //Get variables of Basic Group Graph Pattern
+   for (vector<QueryGraph::Node>::const_iterator iter=subquery.nodes.begin(),limit=subquery.nodes.end();iter!=limit;++iter) {
+      if ((!(*iter).constSubject))
+        vars.insert((*iter).subject);
+      if ((!(*iter).constPredicate))
+        vars.insert((*iter).predicate);
+      if ((!(*iter).constObject))
+        vars.insert((*iter).object);
+    }
+}
+
+static void getVariablesVector(vector<QueryGraph::SubQuery> subqueries, set<unsigned>& vars) {
+  //Get variables of a vector of Basic Group Graph Pattern
+  for (vector<QueryGraph::SubQuery>::iterator iter1=subqueries.begin() , limit1=subqueries.end() ; iter1!=limit1 ; ++iter1)
+    getVariables(*iter1,vars);
+}
+
+static void intersect(set<unsigned> set1, set<unsigned> set2, set<unsigned>& intersect) {
+    //Intersect two sets and storage intersection in another set variable
+    for(set<unsigned>::iterator iter1=set1.begin(),limit1=set1.end();iter1!=limit1;++iter1) 
+      for(set<unsigned>::iterator iter2=set2.begin(),limit2=set2.end();iter2!=limit2;++iter2)
+        if ((*iter1) == (*iter2))
+          intersect.insert(*iter1);
+} 
+
 static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subquery, map<unsigned,unsigned>& projection, set<unsigned> unionvars, map<unsigned,unsigned>& null) {
 
   // dictionary with the nodes elements
@@ -151,13 +177,149 @@ static void translateUnionMonet(QueryGraph& query, vector<QueryGraph::SubQuery> 
   }
 }
 
+
+static void translateSubQueryOptionalMonet(QueryGraph& query, QueryGraph::SubQuery subquery, unsigned& f, unsigned& r, map<unsigned,unsigned>& projection,set<unsigned> optionalvars) {
+
+  map<unsigned,string> representative;
+  set<unsigned> vars1;
+  vector<set<unsigned> > vars2;
+  set<unsigned> common;
+  {
+    unsigned id=f;
+    //Create dictionary with elements of nodes.
+    for (vector<QueryGraph::Node>::const_iterator iter=subquery.nodes.begin(),limit=subquery.nodes.end();iter!=limit;++iter) {
+      if ((!(*iter).constSubject)&&(!representative.count((*iter).subject)))
+	representative[(*iter).subject]=buildFactsAttribute(id,"subject");
+      if ((!(*iter).constPredicate)&&(!representative.count((*iter).predicate)))
+	representative[(*iter).predicate]=buildFactsAttribute(id,"predicate");
+      if ((!(*iter).constObject)&&(!representative.count((*iter).object)))
+	representative[(*iter).object]=buildFactsAttribute(id,"object");
+      ++id;
+    }
+  }
+  getVariables(subquery,vars1);
+  // should be optional inside optional
+  //OPTIONAL inside this OPTIONAL clause? Get variables for JOIN
+  if (subquery.optional.size()) {
+    unsigned i=0;
+    vars2.resize(subquery.optional.size());
+    common.clear();
+    for(vector<QueryGraph::SubQuery>::iterator iter=subquery.optional.begin(),limit=subquery.optional.end();iter!=limit;++iter) {
+      getVariables(*iter,vars2[i]);
+      intersect(vars1,vars2[i],common);
+      intersect(vars2[i],vars1,common);
+      i++;
+      if ((*iter).unions.size() == 1) {
+        getVariablesVector((*iter).unions[0],vars2[0]);
+        intersect(vars1,vars2[0],common);
+        intersect(vars2[0],vars1,common);
+      }
+    }
+  }
+
+  // miss
+
+  cout << "      (select ";
+  {
+    unsigned id=r, tmp=0;
+    for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
+      //Don't repeat variables in SELECT clause
+      if (representative.count(*iter) && !projection.count(*iter)) {
+        projection[*iter] = 1;
+        if (tmp) cout << ",";
+        cout << representative[*iter] << " as r" << id;
+        id++;
+        tmp=1;
+      }
+    }
+    r = id;
+  }
+  {
+    unsigned id = 0;
+    //Select variables from JOIN of OPTIONAL
+    if (optionalvars.size())
+      for(set<unsigned>::iterator iter=optionalvars.begin(),limit=optionalvars.end();iter!=limit;++iter){ 
+	cout << "," << representative[*iter] << " as q" << id;
+	id++;
+      }
+
+    id = 0;
+    //Select variables to JOIN of OPTIONAL
+    if (subquery.optional.size() || subquery.unions[0].size() == 1)
+      for(set<unsigned>::iterator iter=common.begin(),limit=common.end();iter!=limit;++iter) {
+	cout << "," << representative[*iter] << " as p" << id;
+	id++;
+      }
+  }
+
+  cout << endl << "       from ";
+  {
+    unsigned id=0;
+    for (vector<QueryGraph::Node>::const_iterator iter=subquery.nodes.begin(),limit=subquery.nodes.end();iter!=limit;++iter) {
+      if (id) cout << ",";
+      if ((*iter).constPredicate)
+	cout << "p" << (*iter).predicate << " f" << id; else
+	cout << "allproperties f" << id;
+      ++id;
+    }
+    
+  }
+  cout << endl;
+  cout << "        where ";
+
+  {
+    unsigned id=0; bool first=true;
+    for (vector<QueryGraph::Node>::const_iterator iter=subquery.nodes.begin(),limit=subquery.nodes.end();iter!=limit;++iter) {
+      string s=buildFactsAttribute(id,"subject"),p=buildFactsAttribute(id,"predicate"),o=buildFactsAttribute(id,"object");
+      if ((*iter).constSubject) {
+	if (first) first=false; else cout << " and ";
+	cout << s << "=" << (*iter).subject;
+      } else if (representative[(*iter).subject]!=s) {
+	if (first) first=false; else cout << " and ";
+	cout << s << "=" << representative[(*iter).subject];
+      }
+      if ((*iter).constPredicate) {
+      } else if (representative[(*iter).predicate]!=p) {
+	if (first) first=false; else cout << " and ";
+	cout << p << "=" << representative[(*iter).predicate];
+      }
+      if ((*iter).constObject) {
+	if (first) first=false; else cout << " and ";
+	cout << o << "=" << (*iter).object;
+      } else if (representative[(*iter).object]!=o) {
+	if (first) first=false; else cout << " and ";
+	cout << o << "=" << representative[(*iter).object];
+      }
+      ++id;
+    }
+  }
+ 
+  // Left outer join part
+   
+}
+
+
+
 static void translateOptionalMonet(QueryGraph& query, QueryGraph::SubQuery subquery,map<unsigned,unsigned>& projection, unsigned& f, unsigned& r, unsigned& fact, unsigned factbool) {
 
+  cout << "select ";
+  {
+    unsigned id=0;
+    for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
+      if (id) cout << ",";
+      cout << "r" << id;
+      id++;
+    }
+  }
+  cout << endl;
+  cout << "from (" << endl;
+ 
   unsigned fact_ini= fact;
   if (factbool && subquery.nodes.size()) {
-    //    translateSubQueryOptional(query, subquery, f,r, projection, set<unsigned>());
+    translateSubQueryOptionalMonet(query, subquery, f,r, projection, set<unsigned>());
     cout << "facts" << fact_ini;
   }
+
   
   cout << " Fin Translate Optional Monet ";
   // deberia revisar si es la primera vez y si nodes tiene algo
@@ -186,7 +348,6 @@ static void translateMonet(QueryGraph& query, QueryGraph::SubQuery subquery){
 
   // Optional clause
   else if(subquery.optional.size()  && !subquery.unions.size()) {
-    cout << " hola hancel es gay";
     unsigned  f = 0, r = 0, fact = 0;
     translateOptionalMonet(query,subquery, projection, f,r,fact,1);
   }
@@ -562,31 +723,7 @@ static void translateSubQuery(QueryGraph& query, QueryGraph::SubQuery subquery, 
   cout << ")";
 }
 
-static void getVariables(QueryGraph::SubQuery subquery, set<unsigned>& vars) {
-   //Get variables of Basic Group Graph Pattern
-   for (vector<QueryGraph::Node>::const_iterator iter=subquery.nodes.begin(),limit=subquery.nodes.end();iter!=limit;++iter) {
-      if ((!(*iter).constSubject))
-        vars.insert((*iter).subject);
-      if ((!(*iter).constPredicate))
-        vars.insert((*iter).predicate);
-      if ((!(*iter).constObject))
-        vars.insert((*iter).object);
-    }
-}
 
-static void getVariablesVector(vector<QueryGraph::SubQuery> subqueries, set<unsigned>& vars) {
-  //Get variables of a vector of Basic Group Graph Pattern
-  for (vector<QueryGraph::SubQuery>::iterator iter1=subqueries.begin() , limit1=subqueries.end() ; iter1!=limit1 ; ++iter1)
-    getVariables(*iter1,vars);
-}
-
-static void intersect(set<unsigned> set1, set<unsigned> set2, set<unsigned>& intersect) {
-    //Intersect two sets and storage intersection in another set variable
-    for(set<unsigned>::iterator iter1=set1.begin(),limit1=set1.end();iter1!=limit1;++iter1) 
-      for(set<unsigned>::iterator iter2=set2.begin(),limit2=set2.end();iter2!=limit2;++iter2)
-        if ((*iter1) == (*iter2))
-          intersect.insert(*iter1);
-} 
 
 //---------------------------------------------------------------------------
 static void translateSubQueryOptional(QueryGraph& query, QueryGraph::SubQuery subquery, const string& schema,unsigned& f, unsigned& r, map<unsigned,unsigned>& projection, set<unsigned> optionalvars) {
