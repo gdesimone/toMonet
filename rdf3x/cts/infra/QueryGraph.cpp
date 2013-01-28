@@ -213,9 +213,9 @@ static void constructEdges(QueryGraph::SubQuery& subQuery,set<unsigned>& binding
             subQuery.edges.push_back(QueryGraph::Edge(index,gjoinOfs+index2,common));
    }
    for (unsigned index=0,limit=optionalBindings.size();index<limit;++index) {
-/*      for (unsigned index2=index+1;index2<limit;index2++)
+      for (unsigned index2=index+1;index2<limit;index2++)
          if (intersects(optionalBindings[index],optionalBindings[index2],common))
-            subQuery.edges.push_back(QueryGraph::Edge(optionalOfs+index,optionalOfs+index2,common));*/
+            subQuery.edges.push_back(QueryGraph::Edge(optionalOfs+index,optionalOfs+index2,common));
       for (unsigned index2=0,limit2=unionBindings.size();index2<limit2;index2++)
          if (intersects(optionalBindings[index],unionBindings[index2],common))
             subQuery.edges.push_back(QueryGraph::Edge(optionalOfs+index,unionOfs+index2,common));

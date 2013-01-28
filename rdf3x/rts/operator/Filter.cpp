@@ -1,6 +1,8 @@
 #include "rts/operator/Filter.hpp"
 #include "rts/operator/PlanPrinter.hpp"
 #include "rts/runtime/Runtime.hpp"
+#include <iostream>
+using namespace std;
 //---------------------------------------------------------------------------
 // RDF-3X
 // (c) 2008 Thomas Neumann. Web site: http://www.mpi-inf.mpg.de/~neumann/rdf3x
@@ -46,9 +48,10 @@ unsigned Filter::first()
    // Do we know the domain?
    if ((!exclude)&&(filter->domain)) {
       ObservedDomainDescription domain;
-      for (unsigned index=min;index<=max;index++)
+      for (unsigned index=min;index<=max;index++){
          if (valid[index-min])
             domain.add(index);
+      }
       filter->domain->restrictTo(domain);
    }
 

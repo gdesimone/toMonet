@@ -1,0 +1,28 @@
+select s0.value,s1.value,s2.value,s3.value,s4.value,s5.value,s6.value,s7.value,s8.value,s9.value,s10.value
+from (
+   (select f0.object as r0,f0.subject as p0
+    from berlin100mdb.facts f0,berlin100mdb.strings m0
+    where f0.predicate=1 and m0.id=f0.subject and (trim(both '"' from m0.value) = 'http://www4.wiwiss.fu-berlin.de/bizer/bsbm/v01/instances/dataFromProducer1122/Product55547'))facts0
+    LEFT OUTER JOIN
+   (select f1.subject as r1,f2.object as r2,f3.object as r3,f4.object as r4,f1.object as q0
+    from berlin100mdb.facts f1,berlin100mdb.facts f2,berlin100mdb.facts f3,berlin100mdb.facts f4,berlin100mdb.facts f5,berlin100mdb.facts f6,berlin100mdb.facts f7,berlin100mdb.strings m0
+    where f1.predicate=22 and f2.subject=f1.subject and f2.predicate=24 and f3.subject=f1.subject and f3.predicate=23 and f4.subject=f3.object and f4.predicate=1 and f5.subject=f3.object and f5.predicate=7 and f5.object=148310 and f6.subject=f1.subject and f6.predicate=3 and f6.object=f3.object and f7.subject=f1.subject and f7.predicate=26 and m0.id=f7.object and trim(both '"' from m0.value) > '2008-06-20')facts1
+    ON (facts0.p0 = facts1.q0)
+    LEFT OUTER JOIN
+   (select f8.subject as r5,f11.object as r6,f9.object as r7,f10.object as r8,f8.object as q0,f8.subject as p0
+    from berlin100mdb.facts f8,berlin100mdb.facts f9,berlin100mdb.facts f10,berlin100mdb.facts f11
+    where f8.predicate=31 and f9.subject=f8.subject and f9.predicate=32 and f10.subject=f9.object and f10.predicate=29 and f11.subject=f8.subject and f11.predicate=34)facts2
+    ON (facts0.p0 = facts2.q0)
+    LEFT OUTER JOIN
+   (select f12.object as r9,f12.subject as q0
+    from berlin100mdb.facts f12
+    where f12.predicate=38)facts3
+    ON (facts2.p0 = facts3.q0)
+    LEFT OUTER JOIN
+   (select f13.object as r10,f13.subject as q0
+    from berlin100mdb.facts f13
+    where f13.predicate=36)facts4
+    ON (facts2.p0 = facts4.q0)
+) facts,berlin100mdb.strings s0,berlin100mdb.strings s1,berlin100mdb.strings s2,berlin100mdb.strings s3,berlin100mdb.strings s4,berlin100mdb.strings s5,berlin100mdb.strings s6,berlin100mdb.strings s7,berlin100mdb.strings s8,berlin100mdb.strings s9,berlin100mdb.strings s10
+where s0.id=facts.r0 and s1.id=facts.r1 and s2.id=facts.r2 and s3.id=facts.r3 and s4.id=facts.r4 and s5.id=facts.r5 and s6.id=facts.r6 and s7.id=facts.r7 and s8.id=facts.r8 and s9.id=facts.r9 and s10.id=facts.r10
+;

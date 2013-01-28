@@ -403,37 +403,86 @@ PlanGen::JoinDescription PlanGen::buildJoinInfo(const QueryGraph::SubQuery& quer
 
    return result;
 }
+
+static void printplan(Plan* plan) {
+  if(plan) {
+    cout << plan->op << endl;
+    if(plan->left && plan->op!=0 && plan->op!=1 && plan->op!=2) {
+      cout << " left ";
+      printplan(plan->left);
+    }
+    if(plan->right && plan->op!=0 && plan->op!=1 && plan->op!=2) {
+      cout << " right ";
+      printplan(plan->right);
+    }
+  }
+}
+
+
 //---------------------------------------------------------------------------
-PlanGen::Problem* PlanGen::buildOptional(const QueryGraph::SubQuery& query, const QueryGraph::SubQuery& subquery,unsigned id)
+//PlanGen::Problem* PlanGen::buildOptional(const QueryGraph::SubQuery& query, const QueryGraph::SubQuery& subquery,unsigned id)
+PlanGen::Problem* PlanGen::buildOptional(const QueryGraph::SubQuery& query,unsigned id)
    // Generate an optional part
 {
    // Solve the subproblem
    Plan* p=translateForOptional(query);
-   Plan* q=translate(subquery);
-
+   vector<Plan*> parts;
+    
+   for (unsigned index=0;index<query.optional.size();index++) {
+      Plan* q=translate(query.optional[index]),*bp=q;
+      for (Plan* iter=q;iter;iter=iter->next)
+         if (iter->costs<bp->costs)
+            bp=iter;
+      parts.push_back(q);
+   }
+   
    // Compute statistics
-   Plan::card_t card=p->cardinality+q->cardinality;
-   Plan::cost_t costs=p->costs+q->costs;
-
+   Plan::card_t card=p->cardinality;
+   Plan::cost_t costs=p->costs;
+/*   for (vector<Plan*>::const_iterator iter=parts.begin(),limit=parts.end();iter!=limit;++iter) {
+      card+=(*iter)->cardinality;
+      costs+=(*iter)->costs;
+   } */
+   
    // Create new problem instance
    Problem* result=problems.alloc();
    result->next=0;
    result->plans=0;
    result->relations=BitSet();
    result->relations.set(id);
-
+   
    // And create a optional operator
-   Plan* last=plans.alloc();
-   last->op=Plan::HashOptional;   // Hancel y Giuseppe
-   last->opArg=0;
-   last->left=q;
-   last->right=p;
-   last->cardinality=card;
-   last->costs=costs;
-   last->ordering=~0u;
-   last->next=0;
-   result->plans=last;
-
+   //Plan* last=plans.alloc();
+   Plan* nextPlan=plans.alloc();
+   nextPlan->op=Plan::HashOptional;
+   nextPlan->opArg=0;
+   nextPlan->left=0;
+   nextPlan->right=p;
+   nextPlan->cardinality=card;
+   nextPlan->costs=costs;
+   nextPlan->ordering=~0u;
+   nextPlan->next=0;
+    
+   for (unsigned index=0;index<parts.size();index++) {
+      nextPlan->left=parts[index];
+      if(index + 1 == parts.size())
+        break;
+      Plan* last=plans.alloc();
+      last->op=Plan::HashOptional;
+      last->opArg=0;
+      //nextPlan->left=last->right;
+      //last->right=nextPlan;
+      //last=nextPlan;
+      last->right=nextPlan;
+      last->cardinality=nextPlan->right->cardinality;
+      last->costs=nextPlan->right->costs;
+      last->ordering=~0u;
+      last->next=0;
+      nextPlan=last;
+   }
+ 
+   result->plans=nextPlan;
+  
    return result;
 }
 //---------------------------------------------------------------------------
@@ -680,8 +729,8 @@ PlanGen::Problem* PlanGen::buildGJoin(const vector<QueryGraph::SubQuery>& query,
    Plan* last=plans.alloc();
    last->op=Plan::HashJoin;   // Hancel y Giuseppe (by Tomas)
    last->opArg=0;
-   last->left=parts[1];//0
-   last->right=parts[0];//1
+   last->left=parts[0];
+   last->right=parts[1];
    last->cardinality=card;
    last->costs=costs;
    last->ordering=~0u;
@@ -702,9 +751,14 @@ Plan* PlanGen::translate(const QueryGraph::SubQuery& query)
 
    // Seed the DP table with scans
    vector<Problem*> dpTable;
-   dpTable.resize(query.nodes.size()+query.optional.size()+query.unions.size()+query.tableFunctions.size()+query.gjoins.size()+singletonNeeded);
+   if (query.optional.size())
+     dpTable.resize(query.optional.size()+query.unions.size()+query.tableFunctions.size()+query.gjoins.size()+singletonNeeded);
+   else
+     dpTable.resize(query.nodes.size()+query.optional.size()+query.unions.size()+query.tableFunctions.size()+query.gjoins.size()+singletonNeeded);
+     
    Problem* last=0;
    unsigned id=0;
+   if (!query.optional.size())
    for (vector<QueryGraph::Node>::const_iterator iter=query.nodes.begin(),limit=query.nodes.end();iter!=limit;++iter,++id) {
       Problem* p=buildScan(query,*iter,id);
       if (last)
@@ -712,13 +766,15 @@ Plan* PlanGen::translate(const QueryGraph::SubQuery& query)
          dpTable[0]=p;
       last=p;
    }
-   for (vector<QueryGraph::SubQuery>::const_iterator iter=query.optional.begin(),limit=query.optional.end();iter!=limit;++iter,++id) {
-      Problem* p=buildOptional(query,*iter,id);
+   //for (vector<QueryGraph::SubQuery>::const_iterator iter=query.optional.begin(),limit=query.optional.end();iter!=limit;++iter,++id) {
+   if (query.optional.size()) {
+      Problem* p=buildOptional(query,id);
       if (last)
          last->next=p; else
          dpTable[0]=p;
       last=p;
    }
+   
    for (vector<vector<QueryGraph::SubQuery> >::const_iterator iter=query.unions.begin(),limit=query.unions.end();iter!=limit;++iter,++id) {
       Problem* p=buildUnion(*iter,id);
       if (last)
@@ -742,6 +798,7 @@ Plan* PlanGen::translate(const QueryGraph::SubQuery& query)
          dpTable[0]=p;
       last=p;
    }
+   
    unsigned singletonId=id;
    if (singletonNeeded) {
       Plan* plan=plans.alloc();
@@ -885,7 +942,7 @@ Plan* PlanGen::translate(const QueryGraph::SubQuery& query)
                      }
                      if (!query.gjoins.size()) {
                        // Try a hash join
-                       if (selectivity>=0) {
+                       if (selectivity>=0 && !query.optional.size()) {
                           Plan* p=plans.alloc();
                           p->op=Plan::HashJoin;
                           p->opArg=0;
@@ -948,10 +1005,21 @@ Plan* PlanGen::translate(const QueryGraph::SubQuery& query)
          }
       }
    }
+   
    // Extract the bestplan
-   if (dpTable.empty()||(!dpTable.back()))
-      return 0;
-   Plan* plan=dpTable.back()->plans;
+   Plan* plan;
+   if (!query.optional.size()) {
+     if (dpTable.empty()||(!dpTable.back()))
+        return 0;
+     plan=dpTable.back()->plans;
+   }
+   else {
+    if (dpTable.empty())
+        return 0;
+    plan=dpTable[0]->plans;
+   }
+   
+ 
    if (!plan)
       return 0;
 
@@ -972,7 +1040,9 @@ Plan* PlanGen::translate(const QueryGraph::SubQuery& query)
          plan=p;
       }
 
-   // Return the complete plan
+   //plan->print(2);;
+
+   // Return the complete plan   
    return plan;
 }
 //---------------------------------------------------------------------------
@@ -997,267 +1067,27 @@ Plan* PlanGen::translateForOptional(const QueryGraph::SubQuery& query)
          dpTable[0]=p;
       last=p;
    }
-/*   for (vector<QueryGraph::SubQuery>::const_iterator iter=query.optional.begin(),limit=query.optional.end();iter!=limit;++iter,++id) {
-      Problem* p=buildOptional(query,*iter,id);
-      if (last)
-         last->next=p; else
-         dpTable[0]=p;
-      last=p;
-   }
-   for (vector<vector<QueryGraph::SubQuery> >::const_iterator iter=query.unions.begin(),limit=query.unions.end();iter!=limit;++iter,++id) {
-      Problem* p=buildUnion(*iter,id);
-      if (last)
-         last->next=p; else
-         dpTable[0]=p;
-      last=p;
-   }
-   // Hancel y Giuseppe
-   for (vector<vector<QueryGraph::SubQuery> >::const_iterator iter=query.gjoins.begin(),limit=query.gjoins.end();iter!=limit;++iter,++id) {
-      Problem* p=buildGJoin(*iter,id);
-      if (last)
-         last->next=p; else
-         dpTable[0]=p;
-      last=p;
-   }
-   unsigned functionIds=id;
-   for (vector<QueryGraph::TableFunction>::const_iterator iter=query.tableFunctions.begin(),limit=query.tableFunctions.end();iter!=limit;++iter,++id) {
-      Problem* p=buildTableFunction(*iter,id);
-      if (last)
-         last->next=p; else
-         dpTable[0]=p;
-      last=p;
-   }
-   unsigned singletonId=id;*/
-   if (singletonNeeded) {
-      Plan* plan=plans.alloc();
-      plan->op=Plan::Singleton;
-      plan->opArg=0;
-      plan->left=0;
-      plan->right=0;
-      plan->next=0;
-      plan->cardinality=1;
-      plan->ordering=~0u;
-      plan->costs=0;
 
-      Problem* problem=problems.alloc();
-      problem->next=0;
-      problem->plans=plan;
-      problem->relations=BitSet();
-      problem->relations.set(id);
-      if (last)
-         last->next=problem; else
-         dpTable[0]=problem;
-      last=problem;
-   }
-
-   // Construct the join info
-   vector<JoinDescription> joins;
-/*   for (vector<QueryGraph::Edge>::const_iterator iter=query.edges.begin(),limit=query.edges.end();iter!=limit;++iter)
-      joins.push_back(buildJoinInfo(query,*iter));
-   id=functionIds;
-   for (vector<QueryGraph::TableFunction>::const_iterator iter=query.tableFunctions.begin(),limit=query.tableFunctions.end();iter!=limit;++iter,++id) {
-      JoinDescription join;
-      set<unsigned> input;
-      for (vector<QueryGraph::TableFunction::Argument>::const_iterator iter2=(*iter).input.begin(),limit2=(*iter).input.end();iter2!=limit2;++iter2)
-         if (~(*iter2).id)
-            input.insert((*iter2).id);
-      for (unsigned index=0;index<query.nodes.size();index++) {
-         unsigned s=query.nodes[index].constSubject?~0u:query.nodes[index].subject;
-         unsigned p=query.nodes[index].constPredicate?~0u:query.nodes[index].predicate;
-         unsigned o=query.nodes[index].constObject?~0u:query.nodes[index].object;
-         if (input.count(s)||input.count(p)||input.count(o)||input.empty())
-            join.left.set(index);
-      }
-      if (singletonNeeded&&input.empty())
-         join.left.set(singletonId);
-      for (unsigned index=0;index<query.tableFunctions.size();index++) {
-         bool found=false;
-         for (vector<unsigned>::const_iterator iter=query.tableFunctions[index].output.begin(),limit=query.tableFunctions[index].output.end();iter!=limit;++iter)
-            if (input.count(*iter)) {
-               found=true;
-               break;
-            }
-         if (found)
-            join.left.set(functionIds+index);
-      }
-      join.right.set(id);
-      join.ordering=~0u;
-      join.selectivity=1;
-      join.tableFunction=&(*iter);
-      joins.push_back(join);
-   }*/
-
-   // Build larger join trees
-   vector<unsigned> joinOrderings;
-   for (unsigned index=1;index<dpTable.size();index++) {
-      map<BitSet,Problem*> lookup;
-      for (unsigned index2=0;index2<index;index2++) {
-         for (Problem* iter=dpTable[index2];iter;iter=iter->next) {
-            BitSet leftRel=iter->relations;
-            for (Problem* iter2=dpTable[index-index2-1];iter2;iter2=iter2->next) {
-               // Overlapping subproblem?
-               BitSet rightRel=iter2->relations;
-               if (leftRel.overlapsWith(rightRel))
-                  continue;
-
-               // Investigate all join candidates
-               Problem* problem=0;
-               double selectivity=1;
-               for (vector<JoinDescription>::const_iterator iter3=joins.begin(),limit3=joins.end();iter3!=limit3;++iter3)
-                  if (((*iter3).left.subsetOf(leftRel))&&((*iter3).right.subsetOf(rightRel))) {
-                     if (!iter->plans) break;
-                     // We can join it...
-                     BitSet relations=leftRel.unionWith(rightRel);
-                     if (lookup.count(relations)) {
-                        problem=lookup[relations];
-                     } else {
-                        lookup[relations]=problem=problems.alloc();
-                        problem->relations=relations;
-                        problem->plans=0;
-                        problem->next=dpTable[index];
-                        dpTable[index]=problem;
-                     }
-                     // Table function call?
-                     if ((*iter3).tableFunction) {
-                        for (Plan* leftPlan=iter->plans;leftPlan;leftPlan=leftPlan->next) {
-                           Plan* p=plans.alloc();
-                           p->op=Plan::TableFunction;
-                           p->opArg=0;
-                           p->left=leftPlan;
-                           p->right=reinterpret_cast<Plan*>(const_cast<QueryGraph::TableFunction*>((*iter3).tableFunction));
-			   p->next=0;
-                           p->cardinality=leftPlan->cardinality;
-                           p->costs=leftPlan->costs+Costs::tableFunction(leftPlan->cardinality);
-                           p->ordering=leftPlan->ordering;
-                           addPlan(problem,p);
-                        }
-
-                        problem=0;
-                        break;
-                     }
-                     // Collect selectivities and join order candidates
-                     joinOrderings.clear();
-                     joinOrderings.push_back((*iter3).ordering);
-                     selectivity=(*iter3).selectivity;
-                     for (++iter3;iter3!=limit3;++iter3) {
-                        joinOrderings.push_back((*iter3).ordering);
-                        // selectivity*=(*iter3).selectivity;
-                     }
-                     break;
-                  }
-               if (!problem) continue;
-
-               // Combine phyiscal plans
-               for (Plan* leftPlan=iter->plans;leftPlan;leftPlan=leftPlan->next) {
-                  for (Plan* rightPlan=iter2->plans;rightPlan;rightPlan=rightPlan->next) {
-                     // Try a merge joins
-                     if (leftPlan->ordering==rightPlan->ordering) {
-                        for (vector<unsigned>::const_iterator iter=joinOrderings.begin(),limit=joinOrderings.end();iter!=limit;++iter) {
-                           if (leftPlan->ordering==(*iter)) {
-                              Plan* p=plans.alloc();
-                              p->op=Plan::MergeJoin;
-                              p->opArg=*iter;
-                              p->left=leftPlan;
-                              p->right=rightPlan;
-			      p->next=0;
-                              if ((p->cardinality=leftPlan->cardinality*rightPlan->cardinality*selectivity)<1) p->cardinality=1;
-                              p->costs=leftPlan->costs+rightPlan->costs+Costs::mergeJoin(leftPlan->cardinality,rightPlan->cardinality);
-                              p->ordering=leftPlan->ordering;
-                              addPlan(problem,p);
-                              break;
-                           }
-                        }
-                     }
-/*                     if (!query.gjoins.size()) {
-                       // Try a hash join
-                       if (selectivity>=0) {
-                          Plan* p=plans.alloc();
-                          p->op=Plan::HashJoin;
-                          p->opArg=0;
-                          p->left=leftPlan;
-                          p->right=rightPlan;
-		  	  p->next=0;
-                          if ((p->cardinality=leftPlan->cardinality*rightPlan->cardinality*selectivity)<1) p->cardinality=1;
-                          p->costs=leftPlan->costs+rightPlan->costs+Costs::hashJoin(leftPlan->cardinality,rightPlan->cardinality);
-                          p->ordering=~0u;
-                          addPlan(problem,p);
-                          // Second order
-                          p=plans.alloc();
-                          p->op=Plan::HashJoin;
-                          p->opArg=0;
-                          p->left=rightPlan;
-                          p->right=leftPlan;
-			  p->next=0;
-                          if ((p->cardinality=leftPlan->cardinality*rightPlan->cardinality*selectivity)<1) p->cardinality=1;
-                          p->costs=leftPlan->costs+rightPlan->costs+Costs::hashJoin(rightPlan->cardinality,leftPlan->cardinality);
-                          p->ordering=~0u;
-                          addPlan(problem,p);
-                       } else {
-                          // Nested loop join
-                          Plan* p=plans.alloc();
-                          p->op=Plan::NestedLoopJoin;
-                          p->opArg=0;
-                          p->left=leftPlan;
-                          p->right=rightPlan;
-	      		  p->next=0;
-                          if ((p->cardinality=leftPlan->cardinality*rightPlan->cardinality)<1) p->cardinality=1;
-                          p->costs=leftPlan->costs+rightPlan->costs+leftPlan->cardinality*rightPlan->costs;
-                          p->ordering=leftPlan->ordering;
-                          addPlan(problem,p);
-                       }
-                     }
-                   else {
-                        Plan* p=plans.alloc();
-                        p->op=Plan::HashJoin;
-                        p->opArg=0;
-                        p->left=leftPlan;
-                        p->right=rightPlan;
-                        p->cardinality=leftPlan->cardinality*rightPlan->cardinality*selectivity;
-                        p->costs=leftPlan->costs+rightPlan->costs+Costs::hashJoin(leftPlan->cardinality,rightPlan->cardinality);
-                        p->ordering=~0u;
-                        addPlan(problem,p);
-                        // Second order
-                        p=plans.alloc();
-                        p->op=Plan::HashJoin;
-                        p->opArg=0;
-                        p->left=rightPlan;
-                        p->right=leftPlan;
-                        p->cardinality=leftPlan->cardinality*rightPlan->cardinality*selectivity;
-                        p->costs=leftPlan->costs+rightPlan->costs+Costs::hashJoin(rightPlan->cardinality,leftPlan->cardinality);
-                        p->ordering=~0u;
-                        addPlan(problem,p);
-                     }*/
-                 }
-               }
-            }
-         }
-      }
-   }
    // Extract the bestplan
-   if (dpTable.empty()||(!dpTable.back()))
+   if (dpTable.empty())//||(!dpTable.back())
       return 0;
-   Plan* plan=dpTable.back()->plans;
+
+   Plan* plan;
+//   if (!query.optional.size()) {
+     if (dpTable.empty())//||(!dpTable.back()))
+        return 0;
+     //plan=dpTable.back()->plans;
+//   }
+//   else {
+//    if (dpTable.empty())
+//        return 0;
+    plan=dpTable[0]->plans;
+//   }
+  
    if (!plan)
       return 0;
 
-/*   // Add all remaining filters
-   set<const QueryGraph::Filter*> appliedFilters;
-   findFilters(plan,appliedFilters);
-   for (vector<QueryGraph::Filter>::const_iterator iter=query.filters.begin(),limit=query.filters.end();iter!=limit;++iter)
-      if (!appliedFilters.count(&(*iter))) {
-         Plan* p=plans.alloc();
-         p->op=Plan::Filter;
-         p->opArg=0;
-         p->left=plan;
-         p->right=reinterpret_cast<Plan*>(const_cast<QueryGraph::Filter*>(&(*iter)));
-	 p->next=0;
-         p->cardinality=plan->cardinality; // XXX real computation
-         p->costs=plan->costs;
-         p->ordering=plan->ordering;
-         plan=p;
-      }
-*/
-   // Return the complete plan
+  // Return the complete plan
    return plan;
 }
 //---------------------------------------------------------------------------
@@ -1272,12 +1102,16 @@ Plan* PlanGen::translate(Database& db,const QueryGraph& query)
 
    // Retrieve the base plan
    Plan* plan=translate(query.getQuery());
+
+   //plan->print(6);
+   
    if (!plan)
       return 0;
    Plan* best=0;
    for (Plan* iter=plan;iter;iter=iter->next)
       if ((!best)||(iter->costs<best->costs)||((iter->costs==best->costs)&&(iter->cardinality<best->cardinality)))
          best=iter;
+
    if (!best)
       return 0;
 
@@ -1294,7 +1128,7 @@ Plan* PlanGen::translate(Database& db,const QueryGraph& query)
       p->ordering=~0u;
       best=p;
    }
-
+   best->print(6);
    return best;
 }
 //---------------------------------------------------------------------------

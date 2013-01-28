@@ -136,8 +136,7 @@ HashOptional::~HashOptional()
 //---------------------------------------------------------------------------
 void HashOptional::insert(Entry* e)
    // Insert into the hash table
-{
-   unsigned hashTableSize=hashTable.size()/2;
+{  unsigned hashTableSize=hashTable.size()/2;
    // Try to insert
    bool firstTable=true;
    for (unsigned index=0;index<hashTableSize;index++) {
@@ -160,8 +159,7 @@ void HashOptional::insert(Entry* e)
 //---------------------------------------------------------------------------
 HashOptional::Entry* HashOptional::lookup(unsigned key)
    // Search an entry in the hash table
-{
-   unsigned hashTableSize=hashTable.size()/2;
+{  unsigned hashTableSize=hashTable.size()/2;
    Entry* e=hashTable[hash1(key,hashTableSize)];
    if (e&&(e->key==key))
       return e;
@@ -172,6 +170,7 @@ HashOptional::Entry* HashOptional::lookup(unsigned key)
    e=entryPool.alloc();
    e->next=0;
    e->key=key;
+   e->count=1;
    for (unsigned index=0;index<leftTail.size();index++)
        e->values[index]=~0u;
 
@@ -203,14 +202,15 @@ unsigned HashOptional::next()
    while (true) {
       // Still scanning the hash table?
       for (;hashTableIter;hashTableIter=hashTableIter->next) {
-         //unsigned leftCount=hashTableIter->count;
+         unsigned leftCount=hashTableIter->count;
          leftValue->value=hashTableIter->key;
          
          for (unsigned index=0,limit=leftTail.size();index<limit;++index)
             leftTail[index]->value=hashTableIter->values[index];
          hashTableIter=hashTableIter->next;
 
-         unsigned count=rightCount;
+         unsigned count=leftCount*rightCount;
+         
          observedOutputCardinality+=count;
          return count;
       }
