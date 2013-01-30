@@ -347,9 +347,7 @@ static void translateSubQueryOptional(QueryGraph& query, QueryGraph::SubQuery su
       ++id;
     }
   }
-
   getVariables(subquery,vars1);
-  
   //OPTIONAL inside this OPTIONAL clause? Get variables for JOIN
   if (subquery.optional.size()) {
     unsigned i=0;
@@ -411,7 +409,6 @@ static void translateSubQueryOptional(QueryGraph& query, QueryGraph::SubQuery su
       ++id;
     }   
   }
-
 
   set<unsigned> varsfilters;
   if (subquery.filters.size()) {
@@ -520,7 +517,6 @@ static void translateOptional(QueryGraph& query, QueryGraph::SubQuery subquery, 
       getVariables(*iter,vars[i]);
       intersect(vars1,vars[i],commons[i]);
       intersect(vars[i],vars1,commons[i]);
-      
       translateSubQueryOptional(query,*iter,schema,f,r,projection,commons[i]);
       onOptional(commons[i],fact_ini,fact);
       if ((*iter).optional.size())
@@ -857,7 +853,7 @@ static void translateOptionalMonet(QueryGraph& query, QueryGraph::SubQuery subqu
   unsigned fact_ini= fact;
   if (factbool && subquery.nodes.size()) {
     translateSubQueryOptionalMonet(query, subquery, f,r, projection, set<unsigned>());
-    cout << ") facts" << fact_ini;
+    cout << "facts" << fact_ini;
   }
 
   set<unsigned> vars1;  
@@ -867,7 +863,7 @@ static void translateOptionalMonet(QueryGraph& query, QueryGraph::SubQuery subqu
   getVariables(subquery,vars1);
   vars.resize(subquery.optional.size());
   commons.resize(subquery.optional.size());
-   for(vector<QueryGraph::SubQuery>::iterator iter=subquery.optional.begin(),limit=subquery.optional.end();iter!=limit;++iter) { 
+  /* for(vector<QueryGraph::SubQuery>::iterator iter=subquery.optional.begin(),limit=subquery.optional.end();iter!=limit;++iter) { 
     cout << "\n    LEFT OUTER JOIN" << endl;
     fact++;
     //Translate OPTIONAL clause inside OPTIONAL clause
@@ -887,7 +883,7 @@ static void translateOptionalMonet(QueryGraph& query, QueryGraph::SubQuery subqu
         getVariablesVector((*iter).unions[0],vars2);
         intersect(vars1,vars2,commons[i]);
         intersect(vars2,vars1,commons[i]);
-	cout << "(";
+	cout << "("
         translateUnionMonet(query,(*iter).unions[0],projection,commons[i]);
 	cout << ")";
         onOptional(commons[i],fact_ini,fact);
@@ -896,7 +892,7 @@ static void translateOptionalMonet(QueryGraph& query, QueryGraph::SubQuery subqu
     i++;
   }
 
-  
+  */
   cout << " Fin Translate Optional Monet ";
   // deberia revisar si es la primera vez y si nodes tiene algo
   // luego ir al translateSubQuery del Optional
