@@ -807,8 +807,8 @@ static void translateSubQueryOptionalMonet(QueryGraph& query, QueryGraph::SubQue
     }
     
   }
-
-  if (subquery.nodes.size() > 1 && subquery.filters.size() != 0) {
+  //cout << "nodes size : " << subquery.nodes.size() << "filter size: " << subquery.filters.size() << endl;
+  if (subquery.nodes.size() > 1 || subquery.filters.size() != 0) {
     cout << endl << "        where ";
   }
   {
@@ -838,26 +838,28 @@ static void translateSubQueryOptionalMonet(QueryGraph& query, QueryGraph::SubQue
     }
     f=id;
   }
-  cout << ") ";
+  cout << " ) ";
   // Left outer join part
    
 }
 
 
 static void translateOptionalMonet(QueryGraph& query, QueryGraph::SubQuery subquery,map<unsigned,unsigned>& projection, unsigned& f, unsigned& r, unsigned& fact, unsigned factbool) {
-
-  cout << "select ";
   {
-    unsigned id=0;
-    for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
-      if (id) cout << ",";
-      cout << "r" << id;
-      id++;
+    if(factbool) {
+      cout << "select ";
+      {
+	unsigned id=0;
+	for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
+	  if (id) cout << ",";
+	  cout << "r" << id;
+	  id++;
+	}
+      }
+      cout << endl;
+      cout << "from (" << endl;
     }
   }
-  cout << endl;
-  cout << "from (" << endl;
- 
   unsigned fact_ini= fact;
   if (factbool && subquery.nodes.size()) {
     translateSubQueryOptionalMonet(query, subquery, f,r, projection, set<unsigned>());
@@ -901,6 +903,7 @@ static void translateOptionalMonet(QueryGraph& query, QueryGraph::SubQuery subqu
     }
     i++;
   }
+  
 
 }  
 
@@ -950,75 +953,7 @@ static void dumpMonetDB(QueryGraph& query)
   QueryGraph::SubQuery subquery = query.getQuery();
   
   translateMonet(query,subquery);
-
-  
-  // // esto creo que va en el translateMonet
-  // {
-  //   unsigned id=0;
-  //   for (vector<QueryGraph::Node>::const_iterator iter=query.getQuery().nodes.begin(),limit=query.getQuery().nodes.end();iter!=limit;++iter) {
-  //     if ((!(*iter).constSubject)&&(!representative.count((*iter).subject)))
-  // 	representative[(*iter).subject]=buildFactsAttribute(id,"subject");
-  //     if ((!(*iter).constPredicate)&&(!representative.count((*iter).predicate)))
-  // 	representative[(*iter).predicate]=buildFactsAttribute(id,"predicate");
-  //     if ((!(*iter).constObject)&&(!representative.count((*iter).object)))
-  // 	representative[(*iter).object]=buildFactsAttribute(id,"object");
-  //     ++id;
-  //   }
-  // }
-  // cout << "   select ";
-  // {
-  //   unsigned id=0;
-  //   for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
-  //     if (id) cout << ",";
-  //     cout << representative[*iter] << " as r" << id;
-  //     id++;
-  //   }
-  // }
-  // cout << endl;
-  // cout << "   from ";
-  // {
-  //   unsigned id=0;
-  //   for (vector<QueryGraph::Node>::const_iterator iter=query.getQuery().nodes.begin(),limit=query.getQuery().nodes.end();iter!=limit;++iter) {
-  //     if (id) cout << ",";
-  //     if ((*iter).constPredicate)
-  // 	cout << "p" << (*iter).predicate << " f" << id; else
-  // 	cout << "allproperties f" << id;
-  //     ++id;
-  //   }
-
-  // }
-  // cout << endl;
-  // cout << "   where ";
-  // {
-  //   unsigned id=0; bool first=true;
-  //   for (vector<QueryGraph::Node>::const_iterator iter=query.getQuery().nodes.begin(),limit=query.getQuery().nodes.end();iter!=limit;++iter) {
-  //     string s=buildFactsAttribute(id,"subject"),p=buildFactsAttribute(id,"predicate"),o=buildFactsAttribute(id,"object");
-  //     if ((*iter).constSubject) {
-  // 	if (first) first=false; else cout << " and ";
-  // 	cout << s << "=" << (*iter).subject;
-  //     } else if (representative[(*iter).subject]!=s) {
-  // 	if (first) first=false; else cout << " and ";
-  // 	cout << s << "=" << representative[(*iter).subject];
-  //     }
-  //     if ((*iter).constPredicate) {
-  //     } else if (representative[(*iter).predicate]!=p) {
-  // 	if (first) first=false; else cout << " and ";
-  // 	cout << p << "=" << representative[(*iter).predicate];
-  //     }
-  //     if ((*iter).constObject) {
-  // 	if (first) first=false; else cout << " and ";
-  // 	cout << o << "=" << (*iter).object;
-  //     } else if (representative[(*iter).object]!=o) {
-  // 	if (first) first=false; else cout << " and ";
-  // 	cout << o << "=" << representative[(*iter).object];
-  //     }
-  //     ++id;
-  //   }
-  // }
-
-
-  // desde aquí llega el dumpPotgres 
-  cout << endl << ") facts";
+  cout << endl << "   ) " << endl << ") facts";
   {
     unsigned id=0;
     for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
