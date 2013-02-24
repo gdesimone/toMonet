@@ -98,32 +98,48 @@ static void translateFilter(QueryGraph::Filter filter, map<unsigned,unsigned> va
   }
 }
 
-/*static void translateInsideFilter(QueryGraph::Filter& filter, map<unsigned,string> representative) {
-  if (filter.type == QueryGraph::Filter::Equal || filter.type == QueryGraph::Filter::NotEqual) {
-    cout << " and ";
-    if (filter.arg1->type ==  QueryGraph::Filter::Variable && filter.arg2->type ==  QueryGraph::Filter::IRI) {
-      cout << representative[filter.arg1->id]; 
-      if (filter.type == QueryGraph::Filter::Equal)
-        cout << "=";
-      else if (filter.type == QueryGraph::Filter::NotEqual)
-        cout << "<>";
-      cout << filter.arg2->value;
-    }
-    else if (filter.arg2->type ==  QueryGraph::Filter::Variable && filter.arg1->type ==  QueryGraph::Filter::IRI) {
-      cout << representative[filter.arg2->id];
-      if (filter.type == QueryGraph::Filter::Equal)
-        cout << "=";
-      else if (filter.type == QueryGraph::Filter::NotEqual)
-        cout << "<>";
-      cout << filter.arg1->id;
-    }
-  }
-}
 
-static void insertInSet(set<unsigned> set1, set<unsigned>& set2) {
-  for(set<unsigned>::iterator iter=set1.begin(),limit=set1.end();iter!=limit;++iter)
-    set2.insert(*iter);
-}*/
+
+//---------------------------------------------------------------------------
+static void translateFilterMonet(QueryGraph::Filter filter, map<unsigned,string> representative) {
+  map<QueryGraph::Filter::Type,string> binaryOperator; 
+  binaryOperator[QueryGraph::Filter::Or]             = "or";
+  binaryOperator[QueryGraph::Filter::And]            = "and";
+  binaryOperator[QueryGraph::Filter::Equal]          = "=";
+  binaryOperator[QueryGraph::Filter::NotEqual]       = "<>";
+  binaryOperator[QueryGraph::Filter::Less]           = "<";
+  binaryOperator[QueryGraph::Filter::LessOrEqual]    = "<=";
+  binaryOperator[QueryGraph::Filter::Greater]        = ">";
+  binaryOperator[QueryGraph::Filter::GreaterOrEqual] = ">=";
+  binaryOperator[QueryGraph::Filter::Plus]           = "+";
+  binaryOperator[QueryGraph::Filter::Minus]          = "-";
+  binaryOperator[QueryGraph::Filter::Mul]            = "*";
+  binaryOperator[QueryGraph::Filter::Div]            = "/";
+
+  map<QueryGraph::Filter::Type,string> unaryOperator;
+  unaryOperator[QueryGraph::Filter::Not]        = "not";
+  unaryOperator[QueryGraph::Filter::UnaryPlus]  = "+";
+  unaryOperator[QueryGraph::Filter::UnaryMinus] = "-"; 
+  
+  if (filter.type == QueryGraph::Filter::Variable)  
+    cout << " CAST((select value from strings where id = " << representative[filter.id] << ") AS INTEGER)";
+  else if (filter.type == QueryGraph::Filter::Literal)
+    cout << filter.value;
+  else if (filter.type == QueryGraph::Filter::IRI)
+    cout << "\'" << filter.value << "\'";
+  else if (unaryOperator.count(filter.type)) {
+    cout << unaryOperator[filter.type] << "(";
+    translateFilterMonet(*filter.arg1,representative);
+    cout << ")";
+  }
+  else if (binaryOperator.count(filter.type)){
+      cout << "(";
+      translateFilterMonet(*filter.arg1,representative);
+      cout << " " << binaryOperator[filter.type] << " ";
+      translateFilterMonet(*filter.arg2,representative);
+      cout << ")";
+  }
+} 
 
 //---------------------------------------------------------------------------
 
@@ -238,8 +254,8 @@ static void translateSubQuery(QueryGraph& query, QueryGraph::SubQuery subquery, 
       cout << schema << ".facts f" << id;
       ++id;
     }
-
   }
+	
   //Translate filters
   set<unsigned> varsfilters;
   if (subquery.filters.size()) {
@@ -284,6 +300,7 @@ static void translateSubQuery(QueryGraph& query, QueryGraph::SubQuery subquery, 
       ++id;
     }
   }
+
   //Join for get values for filters.
   if (subquery.filters.size()) {
     map<unsigned,unsigned> varsfilters_map;
@@ -425,6 +442,8 @@ static void translateSubQueryOptional(QueryGraph& query, QueryGraph::SubQuery su
       id++;
     }
   }
+
+  cout << endl << "vamos a ver donde estamos " << endl;
  cout << endl;
   cout << "    where ";
   {
@@ -659,13 +678,11 @@ static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subqu
 	  i = 1;
 	}
       }
-	    
       id++;
     }
   }
 
-  cout << endl;
-  cout << "   from ";
+  cout << endl << "   from ";
   {
     unsigned id=0;
     for (vector<QueryGraph::Node>::const_iterator iter=subquery.nodes.begin(),limit=subquery.nodes.end();iter!=limit;++iter) {
@@ -675,7 +692,6 @@ static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subqu
 	cout << "allproperties f" << id;
       ++id;
     }
-
   }
   cout << endl;
   cout << "   where ";
@@ -704,8 +720,26 @@ static void translateSubQueryMonet(QueryGraph& query, QueryGraph::SubQuery subqu
       }
       ++id;
     }
+      
+    //Join for get values for filters.
+    set<unsigned> varsfilters;
+    if (subquery.filters.size()) {
+      getVariablesVF(subquery.filters,varsfilters);
+      map<unsigned,unsigned> varsfilters_map;
+      set2map(varsfilters,varsfilters_map);
+
+      //Finally, translate filters.
+      for(vector<QueryGraph::Filter>::iterator iter = subquery.filters.begin(), limit = subquery.filters.end() ; iter != limit ; iter++) {
+	cout << " and "; 
+	translateFilterMonet(*iter,representative);
+	cout << endl;
+      }
+    }
+    //    cout << ")";
   }
-} 
+  
+}
+
 
 static void translateUnionMonet(QueryGraph& query, vector<QueryGraph::SubQuery>  unions, map<unsigned,unsigned>& projection, set<unsigned> unionvars) {
 
@@ -845,8 +879,8 @@ static void translateSubQueryOptionalMonet(QueryGraph& query, QueryGraph::SubQue
 
 
 static void translateOptionalMonet(QueryGraph& query, QueryGraph::SubQuery subquery,map<unsigned,unsigned>& projection, unsigned& f, unsigned& r, unsigned& fact, unsigned factbool) {
-  {
-    if(factbool) {
+  /*  {
+      if(factbool) {
       cout << "select ";
       {
 	unsigned id=0;
@@ -858,8 +892,9 @@ static void translateOptionalMonet(QueryGraph& query, QueryGraph::SubQuery subqu
       }
       cout << endl;
       cout << "from (" << endl;
-    }
-  }
+      } 
+      } 
+  */
   unsigned fact_ini= fact;
   if (factbool && subquery.nodes.size()) {
     translateSubQueryOptionalMonet(query, subquery, f,r, projection, set<unsigned>());
@@ -902,9 +937,10 @@ static void translateOptionalMonet(QueryGraph& query, QueryGraph::SubQuery subqu
       }
     }
     i++;
-  }
-  
+   }
 
+   //   cout << ")" << endl;
+   cout  << endl;
 }  
 
 
@@ -925,7 +961,21 @@ static void translateMonet(QueryGraph& query, QueryGraph::SubQuery subquery){
   // Optional clause
   else if(subquery.optional.size()  && !subquery.unions.size()) {
     unsigned  f = 0, r = 0, fact = 0;
+
+    cout << "select ";
+    {
+      unsigned id=0;
+      for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
+	if (id) cout << ",";
+	cout << "r" << id;
+	id++;
+      }
+    }
+    cout << endl;
+    cout << "from (" << endl;
+    
     translateOptionalMonet(query,subquery, projection, f,r,fact,1);
+    cout << ")";
   }
 }
 
@@ -936,6 +986,9 @@ static void dumpMonetDB(QueryGraph& query)
 // Dump a monet query
 {
   cout << "select ";
+  if(query.getDuplicateHandling()==3) 
+    cout << "distinct ";
+
   {
     unsigned id=0;
     for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
@@ -953,7 +1006,8 @@ static void dumpMonetDB(QueryGraph& query)
   QueryGraph::SubQuery subquery = query.getQuery();
   
   translateMonet(query,subquery);
-  cout << endl << "   ) " << endl << ") facts";
+
+  cout << endl << ")facts";
   {
     unsigned id=0;
     for (QueryGraph::projection_iterator iter=query.projectionBegin(),limit=query.projectionEnd();iter!=limit;++iter) {
@@ -971,6 +1025,18 @@ static void dumpMonetDB(QueryGraph& query)
       id++;
     }
   }
+  
+  if (query.getLimit() != ~0u)  
+    cout << endl << "limit " << query.getLimit();
+  {                                                                                               
+    unsigned id=0, o=1;   
+    for (QueryGraph::order_iterator iter=query.orderBegin(),limit=query.orderEnd();iter!=limit;++iter) { 
+      if (o) { cout << endl << "order by "; o = 0; }                                                                                                                          
+      if (id) cout << ",";                                                                                                                   
+      cout << "s" << (*iter).id << ".value";
+      id++;                                                                                                            
+    }
+  }  
   cout << ";" << endl;
 }
 
